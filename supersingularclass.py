@@ -1,16 +1,22 @@
 # The following program takes as input a prime p,
 # and returns a list of supersingular j values.
 
-# The result will be a list of elements of F_p^2, the field with p^2 elements.
-# All computations will be happening in that field.
 
-# We wil need to divide elements.
+# We will be working in F_p^2, so we will construct a class that represents
+# elements in that field
 
-# To divide in F_p, we essentially need to be able to solve ax+by = 1 for x,y.
+# First, we need tools for doing arithmetic in Fp.
+# Most of these are already built in - we just need a way of dividing elements.
+
+# To divide in F_p, we essentially need to be able to solve the diophantine eq
+# ax+by = 1 for x,y. We can do this using the Euclidean algorithm.
 
 # The function axbySolve produces x,y such that ax+by is the gcd of a,b.
 # Note that a,b are assumed to be positive in the code for axbySolve.
 
+# magicBox0 will translate data obtained from the Euclidean algorithm
+# into data needed to find x,y
+# This function is only called by axbySolve
 def magicBox0(last4,a2):
     n0 = last4[0][0]
     n1 = last4[1][0]
@@ -20,6 +26,10 @@ def magicBox0(last4,a2):
     d2 = a2*d1+d0
     newlast4 = [last4[1],[n2,d2]]
     return newlast4
+
+# axbySolve takes a pair of integers a,b,
+# which are assumed to be positive,
+# and returns a pair of integers x,y that satisfy ax+by = gcd(a,b)
 
 def axbySolve(a,b):
     m = min(a,b)
@@ -49,21 +59,29 @@ def axbySolve(a,b):
 # The following function takes as input an integer a and a prime p,
 # an integer b such that ab is congruent to 1 mod p.
 
-# If a is divisible by p, the function will simply return 0.
 
+# invMod takes as input an integer a and a prime p, and
+# returns an integer x that satisfies ax = 1 mod p.
+# The inverse is computed using axbySolve.
+# If a is congruent to 0 mod p, the function returns the string '1/0'
 def invMod(a,p):
     if a % p == 0:
-        return 0
+        return '1/0'
     xy = axbySolve(a,p)
     return xy[0] %p
 
-# We will need to choose a nonsquare d in F_p in order to construct F_p^2.
-# To describe an element of Fp2, we need to fix an element n in Fp
-# which does not have a square root in Fp.
-# Elements of Fp2 will be described as a + b sqrt(n), where a, b are in Fp.
-# To describe an element, we need to specify p, n, a, b.
+# We now construct a class representing elements of Fp2.
+# An element of Fp2 looks like a + b sqrt(ns), where a, b are elements of Fp
+# and ns is a nonzero element of Fp that does not have a square root in Fp.
+
+# To describe an element in a field Fp2, we need to specify:
+# The prime p, a nonsquare ns, and the two coefficients a,b
+# This data represents the element a + b sqrt(ns) in Fp2.
+
+
 
 class ElementFp2:
+# The class is initialized by specifying the 4 integers (p, ns, a, b).
     def __init__(self,p,n,a,b):
         self.char = p
         self.nonsquare = n
@@ -83,27 +101,24 @@ class ElementFp2:
             return str(a)
         else:
             return str(a)+"+"+str(b)+" sqrt(" +str(n)+")"
-    def text(self):
-        p = self.char
-        n = self.nonsquare
-        a = self.proj1
-        b = self.proj2
-        if a == 0 and b == 0:
-            return "0"
-        elif a == 0:
-            return str(b)+" sqrt("+str(n)+")"
-        elif b == 0:
-            return str(a)
-        else:
-            return str(a)+"+"+str(b)+" sqrt(" +str(n)+")"
+# Two elements of Fp2 should be considered equal if the characteristic
+# and nonsquare coincide, and the coefficients coincide mod p.
     def __eq__(self,other):
-        p = self.char
+        p1 = self.char
+        p2 = other.char
+        if p1!=p2:
+            return False
+        ns1 = self.nonsquare
+        ns2 = other.nonsquare
+        if ns1!=ns2:
+            return False
         a1 = self.proj1
         a2 = other.proj1
         b1 = self.proj2
         b2 = other.proj2
-        return ((a1-a2)%p==0) and ((b1-b2)%p==0)
-    
+        return ((a1-a2)%p1==0) and ((b1-b2)%p1==0) 
+
+# We can add and multiply elements of Fp2.    
     def __add__(self,other):
         a1 = self.proj1
         a2 = other.proj1
@@ -123,28 +138,36 @@ class ElementFp2:
         a3 = (a1*a2+ns*b1*b2) % p
         b3 = (a1*b2+a2*b1) % p
         return ElementFp2(p,ns,a3,b3)
-    
+# Given an element x in Fp2 and an integer c,
+# we can compute the scalar multiple cx by x.scale(c)
     def scale(self,c):
         p = self.char
         ns = self.nonsquare
         cfp2 = ElementFp2(p,ns,c,0)
         return self*cfp2
-
+# We can subtract elements.
+# Subtraction is implemented by combining addition and scalar multiplication
     def __sub__(self,other):
         return self + other.scale(-1)
-    
+# x.conj() returns the Galois conjugate of x    
     def conj(self):
         a = self.proj1
         b = self.proj2
         p = self.char
         ns = self.nonsquare
         return ElementFp2(p,ns, a, p-b)
-    
+# x.norm() computes the norm of x by multiplying x and x.conj().
+# Note: The output of x.norm() will be an integer, NOT an element of Fp2
     def norm(self):
         cnj = self.conj()
         n2 = self*cnj
         return n2.proj1
     
+# x.multInv() returns the multiplicative inverse of x.
+# The norm and conjugate of x are computed.
+# The multiplicative inverse of the norm is computed using invMod,
+# and the inverse of x is then computed by rescaling the conjugate of x
+# by the inverse of the norm of x.
     def multInv(self):
         cnj = self.conj()
         nrm2 = self*cnj
@@ -157,6 +180,11 @@ class ElementFp2:
     def inFp(self):
         b = self.proj2
         return b==0
+
+# x.minPoly('t') returns the minimal polynomial of x over Fp, in the variable t.
+# If x is in Fp, then the minimal polynomial of x will be the string 't-x'
+# Otherwise, the minimal polynomial will be a string of the form 't^2+at +b'
+# where a is negative of the trace of x and b is the norm.
 
     def minPoly(self,x):
         p = self.char
@@ -297,6 +325,20 @@ def twoIsog(ab):
 # encoded as tuples of integers, and the value associated to each key is
 # a set containing the endpoints of the three edges leaving that vertex.
 
+# To use ab2GraphsAndModels, we need a pair ab0 and a dictionary.
+# The pair ab0 = (a0,b0) should be a tuple of elements of Fp2,
+# that represents a supersingular curve given by an equation:
+# y^2  = x^3 + a0 x + b0.
+# The dictionary should take as input pairs (c0,c1) of elements in Fp,
+# that represents an element of Fp2, and should return a list of
+# the square roots of (c0,c1) in Fp2. The square roots should be elements of Fp2.
+
+# The dictionary and the pair ab0 should be expressed relative to the same
+# nonsquare; this function is used when the class supSingFp2 is initialized.
+# getMatJsNSsqrtD finds a nonsquare, which it uses to obtain ab0,
+# and then generates a dictionary of square roots in terms of that nonsquare.
+# This will ensure the pair is compatible.
+
 def ab2GraphsAndModels(ab0,dic):
     js = []
     eqs = [ab0]
@@ -319,16 +361,18 @@ def ab2GraphsAndModels(ab0,dic):
         eqs = neweqs
     return [graph,models]
 
-# Set-up
 
-# We now start with a prime p, and produce the j-invariants.
-# The choice of p will determine the nonsquare we use:
-# we will restrict to nonsquares in the list below:
+# To start the main algorithm, we need to find a suitable nonsquare in Fp.
+# A nonsquare is suitable if and only if it appears in the following list:
 
 nonSquares = [-1,-2,-3,-7,-11,-19,-43,-67,-163]
 
-# For any odd prime p < 15073, one of those integers is a quadratic nonresidue.
+# For any odd prime p < 15073, one of those integers is a guaranteed to work.
 
+# chooseNonSquare takes as input a prime p,
+# and returns a suitable nonsquare if one exists.
+# To determine whether integers are squares, we use quadratic reciprocity.
+# If a nonsquare can't be found in the list, an error message is returned.
 def chooseNonSquare(p):
     if p % 4 == 3:
         return -1
@@ -469,5 +513,28 @@ class supSingFp2:
     def fgs(self):
         j0s = self.js()
         return [self.shortWeirEQs(j) for j in j0s]
-    
+# self.jPolyFacs('x') returns a set of minimal polynomials of j-invariants
+# in the variable 'x'.
+    def jPolyFacs(self,x):
+        js = self.js()
+        p = self.char
+        facs = []
+        for j in js:
+            if 2*(j.proj2)<p:
+                facs.append(j.minPoly(x))
+        return facs
+# self.jPoly('x') is similar to jPolyFacs, but returns the product of the
+# factors as a single string.
+    def jPoly(self,x):
+        pfs = self.jPolyFacs(x)
+        p1 = ''
+        p2 = ''
+        for f in  pfs:
+            if len(f) == 1:
+                p1 = f+ p1
+            elif f[1] != '^':
+                p1+='('+f+')'
+            else:
+                p2+='('+f+')'
+        return p1+p2
  
