@@ -894,10 +894,11 @@ def getSupSingRawData(p):
 
 
 ######################
-#New, untested stuff #
+#To be removed soon #
 ######################
 
-
+#This is currently used in computation of 3-isogeny graph when p = 1 mod 3.
+#It will be removed in the future.
 def x3jpairs(t):
     p = t.char
     ns = t.nonsquare
@@ -917,14 +918,13 @@ def x3jpairs(t):
     return [num1//den1,num2//den2]
 
 
-##########
-
-
-
+###################################
+# Supersingular graph Computations#
+###################################
 
 
 class supSingFp2:
-# Computes the 2-isogeny graph using getMatJsNSsqrtD;
+# Computes the 2-isogeny graph using getSupSingRawData;
 # the data can be accessed in the future as self.rawdata
 # without needing to repeat the initial computation.
     def __init__(self,p):
@@ -951,9 +951,6 @@ class supSingFp2:
         # and the answer is returned.
         return [ElementFp2(p,d,ab[0],ab[1]) for ab in jvecs]
 
-    #############
-    # New stuff #
-    #############
     
     # The following computes j-invariants from a modular parameter t
     def jX0(self,l,t):
