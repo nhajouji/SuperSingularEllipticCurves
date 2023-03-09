@@ -404,6 +404,8 @@ def solveQuadFp2(ab,pl):
         rtd = ElementFp2(p,ns,rtdvec[0],rtdvec[1])
     # Finally, we obtain roots of the quadratic using the quadratic formula.
     rtab1 = (rtd-a).scale(p//2)
+    if rtd.norm() == 0:
+        return [rtab1]
     rtab2 = (rtd.scale(-1)-a).scale(p//2)
     return [rtab1,rtab2]
 
@@ -890,6 +892,12 @@ def getSupSingRawData(p):
 
 # Modular curve computations
 
+
+######################
+#New, untested stuff #
+######################
+
+
 def x3jpairs(t):
     p = t.char
     ns = t.nonsquare
@@ -908,49 +916,10 @@ def x3jpairs(t):
     num2 = num2r*num2r*num2r.scale(-256)
     return [num1//den1,num2//den2]
 
-def x5jpairs(t,pl):
-    powD = pl[0]
-    logD = pl[1]
-    p = t.char
-    ns = t.nonsquare
-    if t.norm() == 0:
-        return "Nodal curve"
-    df2 = evalIntPolyFp2([-1,-11,1],t,[powD,logD])
-    if df2.norm() == 0:
-        return "Nodal curve"
-    num1rt= evalIntPolyFp2([1,12,14,-12,1],t,[powD,logD])
-    num1 = evalIntPolyFp2([0,0,0,1],num1rt,[powD,logD])
-    den1 = evalIntPolyFp2([0,0,0,0,0,1],t,[powD,logD])*df2
-    j1 = num1//den1
-    num2rt = evalIntPolyFp2([1,-228,494,228,1],t,[powD,logD])
-    num2 = evalIntPolyFp2([0,0,0,1],num2rt,[powD,logD])
-    den2 = evalIntPolyFp2([0,0,0,0,0,1],df2,[powD,logD])*t
-    j2 = num2//den2
-    return [j1,j2]
 
-def x7jpairs(t,pl):
-    powD = pl[0]
-    logD = pl[1]
-    p = t.char
-    ns = t.nonsquare
-    df1 = t*t-t
-    if df1.norm() == 0:
-        return "Nodal curve"
-    df2 = evalIntPolyFp2([1,5,-8,1],t,[powD,logD])
-    if df2.norm() == 0:
-        return "Nodal curve"
-    num1rt0= evalIntPolyFp2([1, -1, 1],t,[powD,logD])
-    num1rt1= evalIntPolyFp2([1, 5, -10, -15, 30, -11, 1],t,[powD,logD])
-    num1rt = num1rt0*num1rt1
-    num1 = num1rt*num1rt*num1rt
-    den1 = evalIntPolyFp2([0]*7+[1],df1,[powD,logD])*df2
-    j1 = num1//den1
-    num2rt2 = evalIntPolyFp2([1, -235, 1430, -1695, 270, 229, 1],t,[powD,logD])
-    num2rt = num1rt0*num2rt2
-    num2 = num2rt*num2rt*num2rt
-    den2 = evalIntPolyFp2([0]*7+[1],df2,[powD,logD])*df1
-    j2 = num2//den2
-    return [j1,j2]
+##########
+
+
 
 
 
@@ -981,44 +950,88 @@ class supSingFp2:
         # The tuples we have are converted into elements of Fp2,
         # and the answer is returned.
         return [ElementFp2(p,d,ab[0],ab[1]) for ab in jvecs]
+
+    #############
+    # New stuff #
+    #############
     
-# self.jPoly() is similar to jPolyFacs, but returns the product of the
-# factors as a single string.
-    def jPoly(self):
-        js = self.js()
-        polyFac1 = ''
-        polyFac2 = ''
-        p = js[0].char
-        for j in js:
-            if j.proj2 == 0:
-                j1 = j.proj1
-                if j1 == 0:
-                    polyFac1 = 'j'+polyFac1
-                elif j1 == 1728 % p:
-                    polyFac1+='(j-1728)'
-                elif 2*j1 < p:
-                    polyFac1+='(j-'+str(j1)+')'
-                else:
-                    polyFac1+='(j+'+str((-j1)%p)+')'
+    # The following computes j-invariants from a modular parameter t
+    def jX0(self,l,t):
+        p = self.char
+        ns = self.nonsquare
+        t0 = ElementFp2(p,ns,1,0)
+        if l == 5:
+            return ((t*t+t.scale(10)+t0.scale(5))**3)//t
+        elif l == 7:
+            t2 = t*t
+            num= (t2+t.scale(-13)+t0.scale(49)) *((t2+t.scale(-5)+t0)**3)
+            return (num.scale(-1))//t
+        elif l == 13:
+            t2 = t*t
+            t3 = t2*t
+            t4 = t2*t2
+            n1 = (t4+t3.scale(-7)+t2.scale(20)+t.scale(-19)+t0)**3
+            n2 = t2.scale(-1)+t.scale(5)+t0.scale(-13)
+            return (n1*n2)//t
+        else:
+            return 'Not found'
+
+    def isoG(self,l):
+        if l == 2:
+            return self.iso2graph
+        elif l == 5:
+            c = 125
+        elif l == 7:
+            c = 49
+        elif l == 13:
+            c = 13
+        elif l > 13:
+            return 'Not found'
+        p = self.char
+        ns = self.nonsquare
+        if l == 3:
+            if p % 3 == 2:
+                return graph3(p,self.pl)
             else:
-                if (j.proj2)*2 < p:
-                    jp = '(j^2'
-                    t = j.trace()
-                    nt = (-t)%p
-                    if nt > 0 and 2*nt < p:
-                        jp+='+'+str(nt)+'j'
-                    elif 2*nt > p:
-                        jp+='-'+str(t)+'j'
-                    n = j.norm()
-                    if 2*n < p:
-                        jp+='+'+str(n)
-                    else:
-                        jp+='-'+str((-n)%p)
-                    polyFac2+=jp+')'
-        return polyFac1+polyFac2
+                return self.isoGraph3()
+        t0 = ElementFp2(p,ns,1,0)
+        js = self.js()
+        jvs = [j.vec for j in js]
+        ssns = [0 for i in range(p**2)]
+        for j in jvs:
+            ssns[j[0]+p*j[1]]+=1
+        edges = {jv:[] for jv in jvs}
+        edgesSeen = 0
+        n = 1
+        while n < p**2 and edgesSeen < len(jvs)*(l+1):
+            t = ElementFp2(p,ns,n%p,n//p)
+            jtv = (self.jX0(l,t)).vec
+            if ssns[jtv[0]+p*jtv[1]]>0:
+                t2 = (t0.scale(c) // t)
+                jtv2 = (self.jX0(l,t2)).vec
+                edges[jtv].append(jtv2)
+                edgesSeen+=1
+                if jtv == (0,0) and jtv2!= (0,0):
+                    edges[jtv]+=2*[jtv2]
+                    edgesSeen+=2
+                if jtv == (1728%p,0) and jtv2!= jtv:
+                    edges[jtv]+=[jtv2]
+                    edgesSeen+=1
+            n+=1
+        return edges
+
+    def mat(self,l):
+        if l not in [2,3,5,7,13]:
+            return 'Not found'
+        else:
+            p = self.char
+            graph = self.isoG(l)
+            return graph2mat(graph,p)
+    
+
     # This will eventually be removed, as it does the same thing as graph3
-    # but takes much longer. The algorithm is very similar to isoGraph5
-    # and isoGraph7.
+    # but takes much longer.
+    
     def isoGraph3(self):
         js = self.js()
         pl = self.pl
@@ -1065,248 +1078,5 @@ class supSingFp2:
                                         return edges
         return edges
         
-    # isoGraph5 computes the 5-isogeny graph.
-    
-    def isoGraph5(self):
-        # We start by collecting the j's, the power-log dictionary, etc.
-        js = self.js()
-        pl = self.pl
-        p = self.char
-        ns = self.nonsquare
-        # We convert the j's into tuples, as we will not be doing computations
-        # we the j's themselves.
-        jvecs = [j.vec for j in js]
-        # We create a list that will allow us to check whether a given element
-        # of Fp2 is supersingular without having to search the whole list of
-        # j's: the following list contains either 0 or 1 in each entry, with
-        # "1" indicating that a given element of Fp2 is supersingular.
-        jtest = {i:0 for i in range(p**2)}
-        for j in jvecs:
-            jn = j[0]+p*j[1]
-            jtest[jn]+=1
-        #Similarly, we keep track of which elements of Fp2 we've already seen
-        seen = {i:0 for i in range(p**2)}
-        seen[0]+=1
-        # The dictionary "edges" will record the edges in the graph.
-        # Precisely, edges[(a,b)] returns a list containing the 6 endpoints
-        # of edges that start at (a,b).
-        edges = {jv:[] for jv in jvecs}
-        # We keep a record of the number of edges we've seen.
-        edgesSeen = 0
-        # The j = 1728 curve behaves differently from other curves, so we deal with
-        # it separately if p is 3 mod 4.
-        if p % 4 == 3:
-            # The j = 1728 curve is isogenous to curves whose j-invariant is a root
-            # of a certain quadratic that doesn't split over Z. We start by solving
-            # that quadratic.
-            jab = (-44031499226496%p, -292143758886942437376 %p)
-            djab = (jab[0]**2-4*jab[1])%p
-            logdjab = pl[1][(djab,0)]
-            rtdjab = pl[0][logdjab//2]
-            rtdj = ElementFp2(p,ns,rtdjab[0],rtdjab[1])
-            rtdj2 = rtdj.scale(-1)
-            a = ElementFp2(p,ns,jab[0],0)
-            # The roots of the quadratic are:
-            j1 = a.scale(p//2)+rtdj.scale((p+1)//2)
-            j2 = a.scale(p//2)+rtdj2.scale((p+1)//2)
-            # We have 2 edges going back to 1728, and then 2 edges going to each of
-            # j1, j2. We record these edges in the graph, and add 6 to our count
-            # of edges, and move on.
-            edges[(1728%p,0)]+=[(1728%p,0),(1728%p,0),j1.vec,j1.vec,j2.vec,j2.vec]
-            edgesSeen+=6
-        # We now iterate over all of Fp2 (which represents the modular curve X_1(5)):
-        for a in range(p):
-            for b in range(p):
-                # Given a point in Fp2, we check whether we've seen that point,
-                # or seen a point in the same orbit. If we have, we do nothing.
-                nab = a+p*b
-                if seen[nab] == 0:
-                    seen[nab]+=1
-                    # If we haven't seen t or any element in the orbit of t,
-                    # we note that t has now been seen.
-                    t = ElementFp2(p,ns,a,b)
-                    tinv = t.multInv()
-                    tinvneg = tinv.scale(-1)
-                    tinvnegvec = tinvneg.vec
-                    # If the other element in the orbit of t is t itself, we have a
-                    # j = 1728 curve, so we move on.
-                    if t.vec == tinvneg.vec:
-                        continue
-                    ntinvneg = tinvnegvec[0]+p*tinvnegvec[1]
-                    # Otherwise, we also record that we've seen the other element
-                    # in the orbit of t, so we don't overcount.
-                    seen[ntinvneg]+=1
-                    # We compute j_5(t) and j_5'(t)
-                    pair = x5jpairs(t,pl)
-                    # If t is a cusp, then "pair" will be a string with more than 2
-                    # elements; otherwise, pair will be a 2-element list with
-                    # a pair of j-invariants.
-                    # We only need to do something in the latter case:
-                    if len(pair)==2:
-                        j1 = pair[0]
-                        # First, if t gives rise to a curve with j = 0, we deal with
-                        # it separately.
-                        if j1.vec == (0,0):
-                            # If p is not 2 mod 3, this is not supersingular so
-                            # we do nothing.
-                            if p % 3 == 2:
-                                # If p is 2 mod 3, then j = 0 is supersingular,
-                                # so we add edges to the graph.
-                                # Note that we have to add 3 edges because
-                                # the j-map ramifies at j =0.
-                                edges[(0,0)]+=3*[pair[1].vec]
-                                edgesSeen+=3
-                                # If, after doing this, we have all edges
-                                # on the graph, return the graph.
-                                if edgesSeen == len(js)*6:
-                                    return edges
-                        # If j is 1728, we move on because we already took care of it.
-                        elif j1.vec == (1728%p,0):
-                            continue
-                        # Otherwise, j is not 0 or 1728, so we need to check the list.
-                        else:
-                            j1v = j1.vec
-                            j1n = j1v[0]+p*j1v[1]
-                            if jtest[j1n]==1:
-                                # If the list tells us we found a supersingular j,
-                                # we record the edge in the graph.
-                                edges[j1v].append(pair[1].vec)
-                                edgesSeen+=1
-                                # If this is the final edge on the graph, we return
-                                # the graph
-                                if edgesSeen == len(js)*6:
-                                    return edges
-        return edges
 
-    # isoGraph7 computes the 7-isogeny graph using a similar algorithm to isoGraph5
-    
-    def isoGraph7(self):
-        # We start by collecting the j's, the power-log dictionary, etc.
-        js = self.js()
-        pl = self.pl
-        p = self.char
-        ns = self.nonsquare
-        # We convert the j's into tuples, as we will not be doing computations
-        # we the j's themselves.
-        jvecs = [j.vec for j in js]
-        # We create a list that will allow us to check whether a given element
-        # of Fp2 is supersingular without having to search the whole list of
-        # j's: the following list contains either 0 or 1 in each entry, with
-        # "1" indicating that a given element of Fp2 is supersingular.
-        jtest = {i:0 for i in range(p**2)}
-        for j in jvecs:
-            jn = j[0]+p*j[1]
-            jtest[jn]+=1
-        #Similarly, we keep track of which elements of Fp2 we've already seen;
-        #We're going to skip 0 and 1 because they're going to lead to singular
-        #curves
-        seen = {i:0 for i in range(p**2)}
-        seen[0]+=1
-        seen[1]+=1
-        # The dictionary "edges" will record the edges in the graph.
-        # Precisely, edges[(a,b)] returns a list containing the 6 endpoints
-        # of edges that start at (a,b).
-        edges = {jv:[] for jv in jvecs}
-        # We keep a record of the number of edges we've seen.
-        edgesSeen = 0
-        seen[0]+=1
-        seen[1]+=1
-        # The j = 0 behaves differently, so we deal with it separately
-        # if p is 2 mod 3.
-        if p % 3 == 2:
-            # The j = 0 curve is isogenous to curves whose j-invariant is a root
-            # of a certain quadratic that doesn't split over Z. We start by solving
-            # that quadratic.
-            jab = (34848505552896000%p, 11356800389480448000000%p)
-            djab = (jab[0]**2-4*jab[1])%p
-            logdjab = pl[1][(djab,0)]
-            rtdjab = pl[0][logdjab//2]
-            rtdj = ElementFp2(p,ns,rtdjab[0],rtdjab[1])
-            rtdj2 = rtdj.scale(-1)
-            a = ElementFp2(p,ns,jab[0],0)
-            # The roots of the quadratic are:
-            j1 = a.scale(p//2)+rtdj.scale((p+1)//2)
-            j2 = a.scale(p//2)+rtdj2.scale((p+1)//2)
-            # We have 2 edges going back to 0, and then 3 edges going to each of
-            # j1, j2. We record these edges in the graph, and add 8 to our count
-            # of edges, and move on.
-            edges[(0,0)]+=2*[(0,0)]+3*[j1.vec]+3*[j2.vec]
-            edgesSeen+=8
-        # We now iterate over all of Fp2 (which represents the modular curve X_1(7)):
-        for a in range(p):
-            for b in range(p):
-                t = ElementFp2(p,ns,a,b)
-                tn = a+p*b
-                # Given a point in Fp2, we check whether we've seen that point,
-                # or seen a point in the same orbit. If we have, we do nothing.
-                if seen[tn] > 0:
-                    continue
-                else:
-                    # If we haven't seen t or any element in the orbit of t,
-                    # we note that t has now been seen.
-                    seen[tn]+=1
-                    t0 = t//t
-                    t2 = (t0-t).multInv()
-                    t3 = (t0 - t2).multInv()
-                    t2v = t2.vec
-                    t3v = t3.vec
-                    t2n = t2v[0]+p*t2v[1]
-                    t3n = t3v[0]+p*t3v[1]
-                    # We compute the other elements in the orbit of t and record
-                    # that they have also been accounted for.
-                    seen[t2n]+=1
-                    seen[t3n]+=1
-                    # Now, we have a new t in X_1(7), so we compute j_7(t) and j_7'(t)
-                    # using x7jpairs.
-                    pair = x7jpairs(t,pl)
-                    # If t did not give rise to singular curves, we continue
-                    # our analysis:
-                    if len(pair)==2:
-                        j1 = pair[0]
-                        # First, check if t represents a curve with j = 0.
-                        # If so, we don't do anything.
-                        if j1.vec == (0,0):
-                            continue
-                        # If t represents a curve with j = 1728, we deal with it
-                        # separately.
-                        elif j1.vec == (1728%p,0):
-                            # First, we can determine whether this is supersingular
-                            # by checking if p = 3 mod 4.
-                            if p % 4 == 3:
-                                # If p is 3 mod 4, then we have to record 2 edges
-                                # because of ramification at j = 1728.
-                                edges[(1728%p,0)]+=2*[pair[1].vec]
-                                edgesSeen+=2
-                                # If we have all edges on the graph, we're done.
-                                if edgesSeen == len(js)*8:
-                                        return edges
-                        else:
-                            # Otherwise, t does not represent j = 0 or j = 1728.
-                            j1v = j1.vec
-                            j1n = j1v[0]+p*j1v[1]
-                            # We check whether t represents a supersingular curve:
-                            if jtest[j1n]==1:
-                                # If it does, we record the edge in the graph.
-                                edges[j1v].append(pair[1].vec)
-                                edgesSeen+=1
-                                # If we have all edges, we return the graph.
-                                if edgesSeen == len(js)*8:
-                                        return edges
-        return edges
-    def mat(self,l):
-        p = self.char
-        pl = self.pl
-        if l == 2:
-            return graph2mat(self.iso2graph,p)
-        elif l == 3 and (p+1) % 3 == 0:
-            g3 = graph3(p,pl)
-            return graph2mat(g3,p)
-        elif l == -3 and (p+1) % 3 == 0:
-            return graph2mat(self.isoGraph3(),p)
-        elif l == 5 and (p+1) % 5 == 0:
-            return graph2mat(self.isoGraph5(),p)
-        elif l == 7 and (p+1) % 7 == 0:
-            return graph2mat(self.isoGraph7(),p)
-        else:
-            return "Not found"
 
